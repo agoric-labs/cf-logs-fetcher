@@ -1,0 +1,40 @@
+name: 'Cloudflare log fetcher'
+description: 'Fetches Cloudflare deployment logs and prints with PR'
+inputs:
+  cf_account_id:  
+    description: 'Cloudflare account id'
+    required: true
+  cf_project:  
+    description: 'Cloudflare project name'
+    required: true
+  cf_token:  
+    description: 'Cloudflare API Token'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: 'Setup jq'
+      uses: dcarbone/install-jq-action@v2
+
+    - name: Get Deployment Bot Comments
+      id: deployment-id
+      shell: bash
+      run: |
+        COMMENTS='${{ github.event.comment.body }}'
+        LOGID=$(echo $COMMENTS | grep -Eo "(http|https)://[a-zA-Z0-9./]*(${{inputs.cf_project}})+"  | sort -u | awk -F/ '{print $3}' | awk -F. '{print $1}')
+        echo "LOGID: $LOGID"
+        if [ -z "$LOGID" ]; then
+          echo "Cloudflare deployment id is empty or not found. Exiting."
+          exit 1
+        fi
+        echo "LOGID=$LOGID" >> $GITHUB_OUTPUT
+
+    - name: Fetch and print logs
+      shell: bash
+      run: |
+        echo "${{steps.deployment-id}}"
+        curl --request GET --url "https://api.cloudflare.com/client/v4/accounts/${{inputs.cf_account_id}}/pages/projects/${{inputs.cf_project}}/deployments/${{steps.deployment-id.outputs.LOGID}}/history/logs" --header "Authorization: Bearer ${{ inputs.cf_token }}" -o logs.json
+        echo '--------- START LOGS ---------------'
+        cat logs.json | jq -r '.result.data | sort_by(.ts)[] | .line' | while IFS= read -r line; do echo -e "$line"; done      
+        echo '--------- END LOGS ---------------'
