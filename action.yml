@@ -20,8 +20,9 @@ runs:
     - name: Get Deployment Bot Comments
       id: deployment-id
       shell: bash
+      env:
+          COMMENTS: ${{ github.event.comment.body }}
       run: |
-        COMMENTS='${{ github.event.comment.body }}'
         LOGID=$(echo $COMMENTS | grep -Eo "(http|https)://[a-zA-Z0-9./]*(${{inputs.cf_project}})+"  | sort -u | awk -F/ '{print $3}' | awk -F. '{print $1}')
         echo "LOGID: $LOGID"
         if [ -z "$LOGID" ]; then
